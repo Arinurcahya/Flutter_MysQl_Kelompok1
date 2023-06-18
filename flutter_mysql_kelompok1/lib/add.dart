@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_mysql_kelompok1/models/note.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
-import 'package:flutter_mysql_kelompok1/models/note.dart';
+import 'package:flutter_mysql_kelompok1/providers/note_provider.dart';
 
 class Add extends StatefulWidget {
-  const Add({super.key});
+  const Add({Key? key}) : super(key: key);
+
 
   @override
   State<Add> createState() => _AddState();
@@ -14,34 +16,42 @@ class Add extends StatefulWidget {
 class _AddState extends State<Add> {
   final _formKey = GlobalKey<FormState>();
 
-  var title = TextEditingController();
-  var content = TextEditingController();
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _contentController = TextEditingController();
 
-  Future _onSubmit() async {
+  
+  Future<void> _onSubmit() async {
+    if (_formKey.currentState!.validate()) {
     try {
+      final noteProvider = Provider.of<NoteProvider>(context, listen: false);
+
+        final newNote = Note(
+          id: '',
+          title: _titleController.text,
+          content: _contentController.text,
+          date: '',
+        );
+
       final response = await http.post(
         Uri.parse("http://192.168.1.7/note_app/create.php"),
         body: {
-          "title": title.text,
-          "content": content.text,
+          "title": newNote.title,
+          "content": newNote.content,
         },
       );
 
-      if (response.statusCode == 200) {
-        var data = jsonDecode(response.body);
-        print(data["message"]);
+     final data = jsonDecode(response.body);
+     print(data["message"]);
 
-        Navigator.pop(context, {
-          "title": title.text,
-          "content": content.text,
-        });
-      } else {
-        throw Exception('Failed to create note');
-      }
-    } catch (e) {
-      print(e);
+        // Menambahkan catatan ke dalam provider setelah berhasil dikirim
+        noteProvider.addNote(newNote);
+
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+      } catch (e) {
+        print(e);
     }
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +76,7 @@ class _AddState extends State<Add> {
               ),
               const SizedBox(height: 5),
               TextFormField(
-                controller: title,
+                controller: _titleController,
                 decoration: InputDecoration(
                   hintText: "Type Note Title",
                   border: OutlineInputBorder(
@@ -97,7 +107,7 @@ class _AddState extends State<Add> {
               ),
               const SizedBox(height: 5),
               TextFormField(
-                controller: content,
+                controller: _contentController,
                 keyboardType: TextInputType.multiline,
                 minLines: 5,
                 maxLines: null,
@@ -131,11 +141,7 @@ class _AddState extends State<Add> {
                   "Submit",
                   style: TextStyle(color: Colors.white),
                 ),
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    _onSubmit();
-                  }
-                },
+                onPressed: _onSubmit,
               ),
             ],
           ),
