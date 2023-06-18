@@ -2,10 +2,15 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_mysql_kelompok1/models/note.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_mysql_kelompok1/providers/note_provider.dart';
 
 class Edit extends StatefulWidget {
-  String id; 
-  Edit({super.key, required this.id});
+  final String id; 
+
+  Edit({Key? key, required this.id}) : super(key: key);
+
 
   @override
   State<Edit> createState() => _EditState();
@@ -14,33 +19,36 @@ class Edit extends StatefulWidget {
 class _EditState extends State<Edit> {
   final _formKey = GlobalKey<FormState>();
 
-//inisialize field 
-var title = TextEditingController();
-var content = TextEditingController();
+
+late TextEditingController _titleController;
+late TextEditingController _contentController;
 
 @override
 void initState() {
   super.initState();
-  //in first time, this method will be executed
+   _titleController = TextEditingController();
+  _contentController = TextEditingController();
   _getData();
 }
 
-//Http to get detail data 
-Future _getData() async {
+ @override
+  void dispose() {
+    _titleController.dispose();
+    _contentController.dispose();
+    super.dispose();
+  }
+
+Future<void> _getData() async {
   try {
     final response = await http.get(Uri.parse(
-        //you have to take the ip address of your computer
-        //because using localhost will cause an error 
-        //get detail data with id
-        "http://192.168.1.7/note_app/detail.php?id= '${widget.id}"));
+        "http://192.168.1.7/note_app/detail.php?id=${widget.id}"));
 
-    // if response successful
     if (response.statusCode == 200) {
       final data= jsonDecode(response.body);
 
       setState(() {
-        title = TextEditingController(text: data['title']);
-        content = TextEditingController(text: data['content']);
+        _titleController.text = data['title'];
+        _contentController.text = data['content'];
       }); 
     }
   } catch (e) { 
@@ -48,45 +56,55 @@ Future _getData() async {
   }
 }
 
-Future _onUpdate(context) async {
+Future<void> _onUpdate(context) async {
   try {
-    return await http.post(
-      Uri.parse("http://192.168.1.7/note_app/update.php"),
-      body: {
-        "id": widget.id,
-        "title": title.text, 
-        "content": content.text,
-      },
-    ).then((value) {
-      //print message after insert to database
-      //you can improve this message with alert dialog
-      var data = jsonDecode(value.body);
+     final noteProvider = Provider.of<NoteProvider>(context, listen: false);
+
+      final updatedNote = Note(
+        id: widget.id,
+        title: _titleController.text,
+        content: _contentController.text,
+        date: '',
+      );
+
+     final response = await http.post(
+        Uri.parse("http://192.168.1.7/note_app/update.php"),
+        body: {
+          "id": updatedNote.id,
+          "title": updatedNote.title,
+          "content": updatedNote.content,
+        },
+      );
+
+      final data = jsonDecode(response.body);
       print(data["message"]);
 
-      Navigator.of(context)
-          .pushNamedAndRemoveUntil('/', (Route<dynamic> route) => false);
-    });
+      noteProvider.updateNote(updatedNote);
+
+    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   } catch (e) {
     print(e);
   }
 }
 
-Future _onDelete(context) async {
+Future<void> _onDelete(context) async {
   try{
-    return await http.post(
-      Uri.parse("http://192.168.1.7//note_app/delete.php"),
+    final noteProvider = Provider.of<NoteProvider>(context, listen: false);
+
+      final response = await http.post(
+        Uri.parse("http://192.168.1.7/note_app/delete.php"),
       body: {
         "id": widget.id,
       },
-    ).then((value) {
-      //print message after insert to database
-      //you can improve this message with alert dialog
-      var data = jsonDecode(value.body);
+      );
+
+      final data = jsonDecode(response.body);
       print(data["message"]);
+
+      noteProvider.deleteNote(widget.id);
+  
       //Remove all existing routes until the home.dart, then rebuild Home.
-      Navigator.of(context)
-          .pushNamedAndRemoveUntil('/', (Route<dynamic> route) => false);
-    });
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   } catch (e) {
     print(e);
   }
@@ -96,8 +114,7 @@ Future _onDelete(context) async {
 Widget build(BuildContext context) {
   return Scaffold(
     appBar: AppBar(
-      title: const Text("Create New Note"),
-      // ignore: prefer_const_literals_to_create_immutables
+      title: const Text("Edit Note"),
       actions: [
         Container(
           padding: const EdgeInsets.only(right: 20),
@@ -123,7 +140,8 @@ Widget build(BuildContext context) {
                 },
               );
             },
-            icon: const Icon(Icons.delete)),
+            icon: const Icon(Icons.delete),
+            ),
       )
     ],
   ),
@@ -142,16 +160,18 @@ Widget build(BuildContext context) {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 5,
+              ),
               TextFormField(
-                controller: title,
+                controller: _titleController,
                 decoration: InputDecoration(
                     hintText: "Type Note Title",
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(15.0),
                     ),
                     fillColor: Colors.white,
-                    filled: true),
+                    filled: true,
+                ),
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
@@ -172,9 +192,10 @@ Widget build(BuildContext context) {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 5,
+              ),
               TextFormField(
-                controller: content,
+                controller: _contentController,
                 keyboardType: TextInputType.multiline,
                 minLines: 5,
                 maxLines: null,
@@ -184,7 +205,8 @@ Widget build(BuildContext context) {
                       borderRadius: BorderRadius.circular(15.0),
                     ),
                     fillColor: Colors.white,
-                    filled: true),
+                    filled: true,
+                ),
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
@@ -208,7 +230,6 @@ Widget build(BuildContext context) {
                   style: TextStyle(color: Colors.white),
                 ),
                 onPressed: () {
-                  
                   if (_formKey.currentState!.validate()) {
                     _onUpdate(context);
                   }
